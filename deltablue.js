@@ -130,6 +130,10 @@ export class Constraint {
      * Activate this constraint and attempt to satisfy it.
      */
     addConstraint(planner) {
+        if (planner !== undefined && this.planner) {
+            this.destroyConstraint();
+            this.planner = planner;
+        }
         this.addToGraph();
         this.planner.incrementalAdd(this);
     }
@@ -718,8 +722,9 @@ export class Variable {
         this.constraints.remove(c);
         if (this.determinedBy == c) this.determinedBy = null;
     }
-    assignValue(newValue) {
-        var edit = new EditConstraint(this, Strength.REQUIRED, this.planner),
+    assignValue(newValue, optionalPriority) {
+        var priority = optionalPriority || Strength.REQUIRED;
+        var edit = new EditConstraint(this, priority, this.planner),
             edits = new OrderedCollection();
         edit.addConstraint();
         edits.add(edit);

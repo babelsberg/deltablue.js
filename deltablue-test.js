@@ -1,6 +1,6 @@
 import * as deltablue from './deltablue.js'
 
-describe('backtalk', function() {
+describe('DeltaBlue', function() {
     it("runs the standard benchmark", function() {
         /**
          * This is the standard DeltaBlue benchmark. A long chain of equality
@@ -18,28 +18,36 @@ describe('backtalk', function() {
         var n = 100;
         var planner = new deltablue.Planner();
         var prev = null, first = null, last = null;
+        var variables = [];
 
         // Build chain of n equality constraints
         for (var i = 0; i <= n; i++) {
             var name = 'v' + i;
-            var v = new deltablue.Variable(name);
-            if (prev != null)
-                new deltablue.EqualityConstraint(prev, v, deltablue.Strength.REQUIRED);
+            var v = new deltablue.Variable(name, 0, planner);
+            if (prev != null) {
+                var c = new deltablue.EqualityConstraint(
+                                prev, v, deltablue.Strength.REQUIRED, planner);
+                c.addConstraint();
+            }
             if (i == 0) first = v;
             if (i == n) last = v;
             prev = v;
+            variables.push(v);
         }
 
-        new deltablue.StayConstraint(last, deltablue.Strength.STRONG_DEFAULT);
-        var edit = new deltablue.EditConstraint(first, deltablue.Strength.PREFERRED);
+        var c = new deltablue.StayConstraint(last, deltablue.Strength.STRONG_DEFAULT, planner);
+        c.addConstraint();
+        var edit = new deltablue.EditConstraint(first, deltablue.Strength.PREFERRED, planner);
         var edits = new deltablue.OrderedCollection();
+        edit.addConstraint();
         edits.add(edit);
         var plan = planner.extractPlanFromConstraints(edits);
         for (var i = 0; i < 100; i++) {
             first.value = i;
             plan.execute();
-            if (last.value != i)
+            if (last.value != i) {
                 throw 'Chain test failed.';
+            }
         }
     });
 
@@ -52,44 +60,36 @@ describe('backtalk', function() {
          */
         var n = 100;
         var planner = new deltablue.Planner();
-        var scale = new deltablue.Variable('scale', 10);
-        var offset = new deltablue.Variable('offset', 1000);
+        var scale = new deltablue.Variable('scale', 10, planner);
+        var offset = new deltablue.Variable('offset', 1000, planner);
         var src = null, dst = null;
 
         var dests = new deltablue.OrderedCollection();
         for (var i = 0; i < n; i++) {
-            src = new deltablue.Variable('src' + i, i);
-            dst = new deltablue.Variable('dst' + i, i);
+            src = new deltablue.Variable('src' + i, i, planner);
+            dst = new deltablue.Variable('dst' + i, i, planner);
             dests.add(dst);
-            new deltablue.StayConstraint(src, deltablue.Strength.NORMAL);
-            new deltablue.ScaleConstraint(src, scale, offset, dst, deltablue.Strength.REQUIRED);
+            var st = new deltablue.StayConstraint(src, deltablue.Strength.NORMAL, planner),
+                sc = new deltablue.ScaleConstraint(
+                        src, scale, offset, dst, deltablue.Strength.REQUIRED, planner
+                    );
+            st.addConstraint();
+            sc.addConstraint();
         }
 
-        dbChange(src, 17);
+        src.assignValue(17);
         if (dst.value != 1170) throw('Projection 1 failed');
-        dbChange(dst, 1050);
+        dst.assignValue(1050);
         if (src.value != 5) throw('Projection 2 failed');
-        dbChange(scale, 5);
+        scale.assignValue(5);
         for (var i = 0; i < n - 1; i++) {
             if (dests.at(i).value != i * 5 + 1000)
                 throw('Projection 3 failed');
         }
-        dbChange(offset, 2000);
+        offset.assignValue(2000);
         for (var i = 0; i < n - 1; i++) {
             if (dests.at(i).value != i * 5 + 2000)
                 throw('Projection 4 failed');
-        }
-
-        function dbChange(v, newValue) {
-            var edit = new deltablue.EditConstraint(v, deltablue.Strength.PREFERRED);
-            var edits = new deltablue.OrderedCollection();
-            edits.add(edit);
-            var plan = planner.extractPlanFromConstraints(edits);
-            for (var i = 0; i < 10; i++) {
-                v.value = newValue;
-                plan.execute();
-            }
-            edit.destroyConstraint();
         }
     });
 });
